@@ -1,42 +1,76 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import { useTokens, useNewPairs, useSurgingTokens } from "@/hooks/useTokens";
+import { MiniChart } from "@/components/atoms/MiniChart";
 import type { TokenMarketResponse } from "@/types/api";
 
 interface TokenTableProps {
-    mode?: "trending" | "surge" | "early";
+    mode?: "trending" | "surge";
+}
+
+// Token Logo Component with multiple fallbacks
+function TokenLogo({ src, symbol, size = 44 }: { src: string; symbol: string; size?: number }) {
+    const [imgSrc, setImgSrc] = React.useState(src);
+    const [attempts, setAttempts] = React.useState(0);
+
+    const fallbackSources = React.useMemo(() => {
+        // Extract mint address from DexScreener URL
+        const mintMatch = src.match(/tokens\/solana\/([^.]+)/);
+        const mintAddress = mintMatch ? mintMatch[1] : '';
+
+        return [
+            src, // Original DexScreener
+            `https://img-cdn.magiceden.dev/rs:fill:400:400:0:0/plain/https://bafybeihzvn3zsi7vufml7v5z5rxye4ttf4jkjcutpmhxjl7dwqit2wgv54.ipfs.nftstorage.link/${mintAddress}.png`,
+            `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${mintAddress}/logo.png`,
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(symbol)}&background=random&size=128&bold=true`
+        ];
+    }, [src, symbol]);
+
+    React.useEffect(() => {
+        setImgSrc(src);
+        setAttempts(0);
+    }, [src]);
+
+    const handleError = () => {
+        if (attempts < fallbackSources.length - 1) {
+            const nextAttempt = attempts + 1;
+            setAttempts(nextAttempt);
+            setImgSrc(fallbackSources[nextAttempt]);
+        }
+    };
+
+    return (
+        <img
+            src={imgSrc}
+            alt={symbol}
+            className="rounded-lg border border-gray-700 object-cover"
+            style={{ width: size, height: size }}
+            onError={handleError}
+        />
+    );
 }
 
 export default function TokenTable({ mode = "trending" }: TokenTableProps) {
-    // Use the appropriate hook based on mode
+    // Always call all hooks unconditionally (React rule)
     const trendingQuery = useTokens();
     const surgingQuery = useSurgingTokens();
     const earlyQuery = useNewPairs();
 
-    // Select the correct query based on mode
-    const query = mode === "surge" ? surgingQuery : mode === "early" ? earlyQuery : trendingQuery;
-    const { data: tokens, isLoading } = query;
+    // Determine which data to use based on mode
+    const isLoading = mode === "surge"
+        ? (surgingQuery.isLoading || earlyQuery.isLoading)
+        : trendingQuery.isLoading;
 
-    // Sort tokens based on mode
     const displayTokens = React.useMemo(() => {
-        if (!tokens) return [];
-
-        if (mode === "surge") {
-            // For surge, sort by price change (highest gainers)
-            return [...tokens].sort((a, b) =>
-                Math.abs(b.price_change_percentage_24h || 0) - Math.abs(a.price_change_percentage_24h || 0)
-            );
+        if (mode === "trending") {
+            const tokens = trendingQuery.data || [];
+            // For trending, sort by volume
+            return [...tokens].sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0));
         }
-
-        if (mode === "early") {
-            // For early, already sorted by creation time from API
-            return tokens;
-        }
-
-        // For trending, sort by volume
-        return [...tokens].sort((a, b) => (b.total_volume || 0) - (a.total_volume || 0));
-    }, [tokens, mode]);
+        return [];
+    }, [mode, trendingQuery.data]);
 
     if (isLoading) {
         return (
@@ -46,25 +80,25 @@ export default function TokenTable({ mode = "trending" }: TokenTableProps) {
         );
     }
 
-    // Show surge view for surge mode, trending table for trending and early
     if (mode === "surge") {
-        return <SurgeView tokens={displayTokens} />;
+        return <SurgeView earlyTokens={earlyQuery.data || []} surgingTokens={surgingQuery.data || []} />;
     }
 
-    return <TrendingTable tokens={displayTokens} mode={mode} />;
+    return <TrendingTable tokens={displayTokens} />;
 }
 
 // Trending Table Component - Exact Axiom Layout
-function TrendingTable({ tokens, mode }: { tokens: TokenMarketResponse[], mode?: "trending" | "early" }) {
+function TrendingTable({ tokens }: { tokens: TokenMarketResponse[] }) {
     return (
         <div className="bg-[#14151a] rounded-lg border border-gray-800 overflow-hidden">
             {/* Table Header */}
-            <div className="grid grid-cols-[300px_180px_140px_140px_120px_220px_120px] gap-4 px-6 py-3 bg-[#0d0e12] border-b border-gray-800 text-sm text-gray-400">
+            <div className="grid grid-cols-[300px_180px_140px_140px_120px_120px_220px_120px] gap-4 px-6 py-3 bg-[#0d0e12] border-b border-gray-800 text-sm text-gray-400">
                 <div>Pair Info</div>
                 <div className="flex items-center gap-1">
-                    {mode === "early" ? "Created" : "Market Cap"}
+                    Market Cap
                     <span className="text-xs">↓</span>
                 </div>
+                <div>Price</div>
                 <div>Liquidity</div>
                 <div>Volume</div>
                 <div>TXNS</div>
@@ -74,8 +108,8 @@ function TrendingTable({ tokens, mode }: { tokens: TokenMarketResponse[], mode?:
 
             {/* Table Body */}
             <div className="divide-y divide-gray-800">
-                {tokens.slice(0, 20).map((token) => (
-                    <TrendingRow key={token.id} token={token} />
+                {tokens.slice(0, 20).map((token, idx) => (
+                    <TrendingRow key={`trending-${token.id}-${idx}`} token={token} />
                 ))}
             </div>
 
@@ -91,7 +125,9 @@ function TrendingTable({ tokens, mode }: { tokens: TokenMarketResponse[], mode?:
 // Trending Table Row - Exact Axiom Style
 function TrendingRow({ token }: { token: TokenMarketResponse }) {
     const getTimeAgo = () => {
-        const days = Math.floor(Math.random() * 180);
+        // Use deterministic time based on token ID to avoid hydration issues
+        const seed = token.id.charCodeAt(0) + token.id.charCodeAt(1);
+        const days = seed % 180;
         if (days < 30) return `${days}d`;
         return `${Math.floor(days / 30)}mo`;
     };
@@ -102,18 +138,18 @@ function TrendingRow({ token }: { token: TokenMarketResponse }) {
         return `$${num.toFixed(decimals)}`;
     };
 
+    const formatPrice = (price: number) => {
+        if (price >= 1) return `$${price.toFixed(2)}`;
+        if (price >= 0.01) return `$${price.toFixed(4)}`;
+        if (price >= 0.0001) return `$${price.toFixed(6)}`;
+        return `$${price.toExponential(2)}`;
+    };
+
     return (
-        <div className="grid grid-cols-[300px_180px_140px_140px_120px_220px_120px] gap-4 px-6 py-4 hover:bg-gray-900/30 transition-colors">
+        <div className="grid grid-cols-[300px_180px_140px_140px_120px_120px_220px_120px] gap-4 px-6 py-4 hover:bg-gray-900/30 transition-colors">
             {/* Pair Info */}
             <div className="flex items-center gap-3">
-                <img
-                    src={token.image}
-                    alt={token.symbol}
-                    className="w-11 h-11 rounded-lg border border-gray-700 object-cover"
-                    onError={(e) => {
-                        e.currentTarget.src = `https://ui-avatars.com/api/?name=${token.symbol}&background=random&size=128`;
-                    }}
-                />
+                <TokenLogo src={token.image} symbol={token.symbol} size={44} />
                 <div className="min-w-0">
                     <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-white">{token.symbol}</span>
@@ -133,17 +169,12 @@ function TrendingRow({ token }: { token: TokenMarketResponse }) {
             {/* Market Cap with Sparkline */}
             <div className="flex flex-col justify-center">
                 <div className="flex items-center gap-2 mb-1">
-                    <div className="flex-1">
-                        <svg width="100" height="30" className="opacity-50">
-                            <path
-                                d={`M 0,${15 + Math.sin(0) * 10} ${Array.from({ length: 20 }, (_, i) =>
-                                    `L ${i * 5},${15 + Math.sin(i * 0.5) * 10}`
-                                ).join(' ')}`}
-                                fill="none"
-                                stroke={token.price_change_percentage_24h >= 0 ? '#10b981' : '#ef4444'}
-                                strokeWidth="1.5"
-                            />
-                        </svg>
+                    <div className="w-[100px] h-[30px]">
+                        <MiniChart
+                            data={token.sparkline && token.sparkline.length > 0 ? token.sparkline : undefined}
+                            width={100}
+                            height={30}
+                        />
                     </div>
                 </div>
                 <div className="flex items-center gap-2">
@@ -152,6 +183,14 @@ function TrendingRow({ token }: { token: TokenMarketResponse }) {
                         {token.price_change_percentage_24h >= 0 ? '+' : ''}{(token.price_change_percentage_24h || 0).toFixed(2)}%
                     </span>
                 </div>
+            </div>
+
+            {/* Price */}
+            <div className="flex flex-col justify-center">
+                <span className="text-white font-medium">{formatPrice(token.current_price)}</span>
+                <span className={`text-xs ${token.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                    {token.price_change_percentage_24h >= 0 ? '↑' : '↓'} {Math.abs(token.price_change_percentage_24h || 0).toFixed(2)}%
+                </span>
             </div>
 
             {/* Liquidity */}
@@ -166,9 +205,9 @@ function TrendingRow({ token }: { token: TokenMarketResponse }) {
 
             {/* TXNS */}
             <div className="flex items-center gap-1 text-sm">
-                <span className="text-green-500">{token.buy_txns || Math.floor(Math.random() * 50)}</span>
+                <span className="text-green-500">{token.buy_txns || (token.id.charCodeAt(0) % 50)}</span>
                 <span className="text-gray-500">/</span>
-                <span className="text-red-500">{token.sell_txns || Math.floor(Math.random() * 30)}</span>
+                <span className="text-red-500">{token.sell_txns || (token.id.charCodeAt(1) % 30)}</span>
             </div>
 
             {/* Token Info - Multiple Percentage Indicators */}
@@ -197,29 +236,26 @@ function TrendingRow({ token }: { token: TokenMarketResponse }) {
     );
 }
 
-// Surge View - Card Layout like Axiom
-function SurgeView({ tokens }: { tokens: TokenMarketResponse[] }) {
-    const earlyTokens = tokens.slice(0, 10);
-    const surgingTokens = tokens.slice(10, 20);
-
+// Surge View - Card Layout like Axiom with Early and Surging sections
+function SurgeView({ earlyTokens, surgingTokens }: { earlyTokens: TokenMarketResponse[], surgingTokens: TokenMarketResponse[] }) {
     return (
         <div className="grid grid-cols-2 gap-6">
-            {/* Early Section */}
+            {/* Early Section - New Pairs */}
             <div>
                 <h2 className="text-lg font-semibold text-white mb-4">Early</h2>
                 <div className="space-y-3">
-                    {earlyTokens.map((token) => (
-                        <SurgeCard key={token.id} token={token} />
+                    {earlyTokens.slice(0, 10).map((token, idx) => (
+                        <SurgeCard key={`early-${token.id}-${idx}`} token={token} />
                     ))}
                 </div>
             </div>
 
-            {/* Surging Section */}
+            {/* Surging Section - Approaching Bonding Curve */}
             <div>
                 <h2 className="text-lg font-semibold text-white mb-4">Surging</h2>
                 <div className="space-y-3">
-                    {surgingTokens.map((token) => (
-                        <SurgeCard key={token.id} token={token} />
+                    {surgingTokens.slice(0, 10).map((token, idx) => (
+                        <SurgeCard key={`surging-${token.id}-${idx}`} token={token} />
                     ))}
                 </div>
             </div>
@@ -230,7 +266,9 @@ function SurgeView({ tokens }: { tokens: TokenMarketResponse[] }) {
 // Surge Card Component - Exact Axiom Style
 function SurgeCard({ token }: { token: TokenMarketResponse }) {
     const getTimeAgo = () => {
-        const minutes = Math.floor(Math.random() * 480);
+        // Use deterministic time based on token ID to avoid hydration issues
+        const seed = token.id.charCodeAt(0) + token.id.charCodeAt(2);
+        const minutes = seed % 480;
         if (minutes < 60) return `${minutes}s`;
         if (minutes < 1440) return `${Math.floor(minutes / 60)}m`;
         return `${Math.floor(minutes / 1440)}d`;
@@ -242,6 +280,13 @@ function SurgeCard({ token }: { token: TokenMarketResponse }) {
         return `$${num.toFixed(0)}`;
     };
 
+    const formatPrice = (price: number) => {
+        if (price >= 1) return `$${price.toFixed(2)}`;
+        if (price >= 0.01) return `$${price.toFixed(4)}`;
+        if (price >= 0.0001) return `$${price.toFixed(6)}`;
+        return `$${price.toExponential(2)}`;
+    };
+
     const mcPercentage = Math.min((token.market_cap / 1000000) * 10, 100);
 
     return (
@@ -249,14 +294,7 @@ function SurgeCard({ token }: { token: TokenMarketResponse }) {
             {/* Header */}
             <div className="flex items-start justify-between mb-3">
                 <div className="flex items-center gap-3">
-                    <img
-                        src={token.image}
-                        alt={token.symbol}
-                        className="w-14 h-14 rounded-lg border border-gray-700 object-cover"
-                        onError={(e) => {
-                            e.currentTarget.src = `https://ui-avatars.com/api/?name=${token.symbol}&background=random&size=128`;
-                        }}
-                    />
+                    <TokenLogo src={token.image} symbol={token.symbol} size={56} />
                     <div>
                         <div className="font-semibold text-white text-sm">{token.symbol}</div>
                         <div className="text-xs text-gray-400 truncate max-w-[120px]">{token.name}</div>
@@ -268,9 +306,23 @@ function SurgeCard({ token }: { token: TokenMarketResponse }) {
 
             {/* Market Cap Progress */}
             <div className="mb-3">
-                <div className="text-xs text-gray-400 mb-1">MC</div>
+                <div className="flex items-center justify-between mb-2">
+                    <div>
+                        <div className="text-xs text-gray-400 mb-1">MC / Price</div>
+                        <div className="flex items-center gap-2">
+                            <span className="text-green-500 font-semibold text-sm">{formatMC(token.market_cap)}</span>
+                            <span className="text-white font-medium text-xs">{formatPrice(token.current_price)}</span>
+                        </div>
+                    </div>
+                    <div className="w-[80px] h-[25px]">
+                        <MiniChart
+                            data={token.sparkline && token.sparkline.length > 0 ? token.sparkline : undefined}
+                            width={80}
+                            height={25}
+                        />
+                    </div>
+                </div>
                 <div className="flex items-center gap-2 mb-2">
-                    <span className="text-green-500 font-semibold text-sm">{formatMC(token.market_cap)}</span>
                     <span className={`text-xs ${token.price_change_percentage_24h >= 0 ? 'text-green-500' : 'text-red-500'}`}>
                         {token.price_change_percentage_24h >= 0 ? '+' : ''}{(token.price_change_percentage_24h || 0).toFixed(2)}%
                     </span>
@@ -288,8 +340,8 @@ function SurgeCard({ token }: { token: TokenMarketResponse }) {
                 <div className="flex items-center gap-3">
                     <div>V {formatMC(token.total_volume)}</div>
                     <div>L {formatMC(token.liquidity || token.market_cap * 0.1)}</div>
-                    <div>👥 {token.buyers || Math.floor(Math.random() * 100)}</div>
-                    <div>0️⃣ {token.buy_txns || Math.floor(Math.random() * 50)}</div>
+                    <div>👥 {token.buyers || (token.id.charCodeAt(0) % 100)}</div>
+                    <div>0️⃣ {token.buy_txns || (token.id.charCodeAt(1) % 50)}</div>
                 </div>
                 <div className="text-xs">
                     ATH {formatMC(token.ath)} <span className="text-green-500">1.0x</span>
@@ -302,7 +354,7 @@ function SurgeCard({ token }: { token: TokenMarketResponse }) {
                 <span className="text-green-500">📈 0%</span>
                 <span className="text-green-500">📈 0%</span>
                 <span className="text-green-500">📈 0%</span>
-                <span className="text-red-500">📉 {Math.floor(Math.random() * 30)}%</span>
+                <span className="text-red-500">📉 {(token.id.charCodeAt(2) % 30)}%</span>
             </div>
 
             {/* Action Button */}

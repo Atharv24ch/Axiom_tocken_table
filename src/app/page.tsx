@@ -5,7 +5,7 @@ import TokenTable from "@/components/organisms/TokenTableNew";
 import { SkeletonRow } from "@/components/molecules/SkeletonRow";
 
 export default function Home() {
-  const [activeTab, setActiveTab] = useState<"trending" | "surge" | "early">("trending");
+  const [activeTab, setActiveTab] = useState<"trending" | "surge">("trending");
   const [timeFilter, setTimeFilter] = useState("5m");
 
   return (
@@ -76,12 +76,6 @@ export default function Home() {
             >
               Surge
             </button>
-            <button
-              onClick={() => setActiveTab("early")}
-              className={`font-medium text-sm ${activeTab === "early" ? "text-white" : "text-gray-400 hover:text-white"}`}
-            >
-              Early
-            </button>
             <button className="text-gray-400 hover:text-white text-sm">DEX Screener</button>
             <button className="flex items-center gap-1 text-gray-400 hover:text-white text-sm">
               Pump Live
@@ -101,8 +95,8 @@ export default function Home() {
                     key={time}
                     onClick={() => setTimeFilter(time)}
                     className={`px-3 py-1 rounded-lg text-xs ${timeFilter === time
-                        ? "bg-[#5b7cff] text-white"
-                        : "text-gray-400 hover:text-white"
+                      ? "bg-[#5b7cff] text-white"
+                      : "text-gray-400 hover:text-white"
                       }`}
                   >
                     {time}
@@ -135,42 +129,6 @@ export default function Home() {
               <button className="px-4 py-1 bg-[#5b7cff] hover:bg-[#4a6bef] rounded-lg font-medium text-sm">50K</button>
               <button className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-sm">➕</button>
               <button className="p-1.5 hover:bg-gray-800 rounded-lg text-sm">ℹ️</button>
-              <button className="p-1.5 hover:bg-gray-800 rounded-lg text-sm">👁️</button>
-              <button className="px-2 py-1 bg-gray-800 rounded-lg text-xs">📁 1 ≡ 0 ▼</button>
-              <span className="text-xs text-gray-400">Quick Buy 0.0</span>
-              <div className="flex items-center gap-1">
-                <button className="px-2 py-1 bg-gray-800 hover:bg-gray-700 rounded text-xs text-[#5b7cff]">P1</button>
-                <button className="px-2 py-1 hover:bg-gray-800 rounded text-xs">P2</button>
-                <button className="px-2 py-1 hover:bg-gray-800 rounded text-xs">P3</button>
-              </div>
-            </div>
-          )}
-
-          {activeTab === "early" && (
-            <div className="flex items-center gap-3">
-              {/* Time Filters for Early */}
-              <div className="flex items-center gap-1.5">
-                {["1m", "5m", "30m", "1h"].map((time) => (
-                  <button
-                    key={time}
-                    onClick={() => setTimeFilter(time)}
-                    className={`px-3 py-1 rounded-lg text-xs ${timeFilter === time
-                        ? "bg-[#5b7cff] text-white"
-                        : "text-gray-400 hover:text-white"
-                      }`}
-                  >
-                    {time}
-                  </button>
-                ))}
-              </div>
-
-              <button className="px-3 py-1 bg-gray-800 hover:bg-gray-700 rounded-lg text-xs flex items-center gap-1.5">
-                ⚙️ Filter
-                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                </svg>
-              </button>
-              <button className="p-1.5 hover:bg-gray-800 rounded-lg text-sm">📌</button>
               <button className="p-1.5 hover:bg-gray-800 rounded-lg text-sm">👁️</button>
               <button className="px-2 py-1 bg-gray-800 rounded-lg text-xs">📁 1 ≡ 0 ▼</button>
               <span className="text-xs text-gray-400">Quick Buy 0.0</span>
