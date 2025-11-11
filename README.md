@@ -17,11 +17,7 @@ A high-performance token trading interface built with Next.js 14, featuring real
 - **State Management**: Redux Toolkit + React Query for optimal data handling
 - **SSR Compatible**: Proper server-side rendering with client hydration
 
-## � Screenshots
-
-See the visual reference for the app in `SCREENSHOTS.md` (images live in the `screenshots/` folder). Replace the placeholder files in `screenshots/` with the real PNGs to have them render on GitHub.
-
-## �📦 Tech Stack
+## 📦 Tech Stack
 
 ### Core Framework
 - **Next.js 14.0.1** - React framework with App Router
@@ -334,3 +330,15 @@ MIT License - see LICENSE file for details
 ---
 
 Built with ❤️ for Axiom Trade Pulse
+
+## 🖼️ Screenshots
+
+Below are a couple of screenshots taken from the running app (included in the `screenshots/` directory):
+
+- Trending view
+
+	![Trending view](screenshots/trending-view.png)
+
+- Surge view
+
+	![Surge view](screenshots/surge-view.png)
