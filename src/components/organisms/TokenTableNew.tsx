@@ -6,40 +6,114 @@ import { useTokens, useNewPairs, useSurgingTokens } from "@/hooks/useTokens";
 import { MiniChart } from "@/components/atoms/MiniChart";
 import type { TokenMarketResponse } from "@/types/api";
 
+// Client-only wrapper to prevent hydration mismatches
+function ClientOnly({ children }: { children: React.ReactNode }) {
+    const [hasMounted, setHasMounted] = React.useState(false);
+
+    React.useEffect(() => {
+        setHasMounted(true);
+    }, []);
+
+    if (!hasMounted) {
+        return null;
+    }
+
+    return <>{children}</>;
+}
+
 interface TokenTableProps {
     mode?: "trending" | "surge";
 }
 
-// Token Logo Component with multiple fallbacks
+// Token Logo Component with metadata fetching and multiple fallbacks
 function TokenLogo({ src, symbol, size = 44 }: { src: string; symbol: string; size?: number }) {
-    const [imgSrc, setImgSrc] = React.useState(src);
+    const [imgSrc, setImgSrc] = React.useState<string>('');
     const [attempts, setAttempts] = React.useState(0);
+    const [isLoading, setIsLoading] = React.useState(true);
 
     const fallbackSources = React.useMemo(() => {
-        // Extract mint address from DexScreener URL
+        // Extract mint address from DexScreener URL or direct address
         const mintMatch = src.match(/tokens\/solana\/([^.]+)/);
-        const mintAddress = mintMatch ? mintMatch[1] : '';
+        const mintAddress = mintMatch ? mintMatch[1] : src;
 
         return [
-            src, // Original DexScreener
+            `https://dd.dexscreener.com/ds-data/tokens/solana/${mintAddress}.png`,
             `https://img-cdn.magiceden.dev/rs:fill:400:400:0:0/plain/https://bafybeihzvn3zsi7vufml7v5z5rxye4ttf4jkjcutpmhxjl7dwqit2wgv54.ipfs.nftstorage.link/${mintAddress}.png`,
             `https://raw.githubusercontent.com/solana-labs/token-list/main/assets/mainnet/${mintAddress}/logo.png`,
             `https://ui-avatars.com/api/?name=${encodeURIComponent(symbol)}&background=random&size=128&bold=true`
         ];
     }, [src, symbol]);
 
+    // Fetch metadata if URI points to JSON
     React.useEffect(() => {
-        setImgSrc(src);
-        setAttempts(0);
-    }, [src]);
+        const fetchImageFromMetadata = async () => {
+            try {
+                // Check if the src is a potential metadata URL (http/https/ipfs)
+                if (src.includes('.json') || src.includes('ipfs://') || src.includes('arweave.net')) {
+                    let metadataUrl = src;
+
+                    // Convert IPFS URIs
+                    if (src.startsWith('ipfs://')) {
+                        metadataUrl = `https://ipfs.io/ipfs/${src.replace('ipfs://', '')}`;
+                    } else if (src.startsWith('ar://')) {
+                        metadataUrl = `https://arweave.net/${src.replace('ar://', '')}`;
+                    }
+
+                    console.log(`🔍 Fetching metadata for ${symbol}:`, metadataUrl);
+
+                    const response = await fetch(metadataUrl);
+                    const metadata = await response.json();
+
+                    // Try to get image from metadata
+                    const imageUrl = metadata.image || metadata.icon || metadata.logo_uri || metadata.logoURI;
+
+                    if (imageUrl) {
+                        // Convert IPFS image URLs
+                        let finalImageUrl = imageUrl;
+                        if (imageUrl.startsWith('ipfs://')) {
+                            finalImageUrl = `https://ipfs.io/ipfs/${imageUrl.replace('ipfs://', '')}`;
+                        }
+                        console.log(`✅ Found image in metadata:`, finalImageUrl);
+                        setImgSrc(finalImageUrl);
+                        setIsLoading(false);
+                        return;
+                    }
+                }
+
+                // If not metadata or no image found, use first fallback
+                setImgSrc(fallbackSources[0]);
+                setIsLoading(false);
+            } catch (error) {
+                console.warn(`⚠️ Failed to fetch metadata for ${symbol}:`, error);
+                // Use first fallback on error
+                setImgSrc(fallbackSources[0]);
+                setIsLoading(false);
+            }
+        };
+
+        fetchImageFromMetadata();
+    }, [src, symbol, fallbackSources]);
 
     const handleError = () => {
         if (attempts < fallbackSources.length - 1) {
             const nextAttempt = attempts + 1;
+            console.log(`⚠️ Image failed for ${symbol}, trying fallback ${nextAttempt}`);
             setAttempts(nextAttempt);
             setImgSrc(fallbackSources[nextAttempt]);
         }
     };
+
+    if (isLoading || !imgSrc) {
+        return (
+            <div
+                className="rounded-lg border border-gray-700 bg-gray-800 flex items-center justify-center"
+                style={{ width: size, height: size }}
+                suppressHydrationWarning
+            >
+                <span className="text-xs text-gray-500">{symbol.slice(0, 2)}</span>
+            </div>
+        );
+    }
 
     return (
         <img
@@ -74,25 +148,37 @@ export default function TokenTable({ mode = "trending" }: TokenTableProps) {
 
     if (isLoading) {
         return (
-            <div className="flex items-center justify-center py-20">
-                <div className="text-gray-400">Loading tokens...</div>
-            </div>
+            <ClientOnly>
+                <div className="flex items-center justify-center py-20" suppressHydrationWarning>
+                    <div className="text-gray-400" suppressHydrationWarning>
+                        Loading tokens...
+                    </div>
+                </div>
+            </ClientOnly>
         );
     }
 
     if (mode === "surge") {
-        return <SurgeView earlyTokens={earlyQuery.data || []} surgingTokens={surgingQuery.data || []} />;
+        return (
+            <ClientOnly>
+                <SurgeView earlyTokens={earlyQuery.data || []} surgingTokens={surgingQuery.data || []} />
+            </ClientOnly>
+        );
     }
 
-    return <TrendingTable tokens={displayTokens} />;
+    return (
+        <ClientOnly>
+            <TrendingTable tokens={displayTokens} />
+        </ClientOnly>
+    );
 }
 
 // Trending Table Component - Exact Axiom Layout
 function TrendingTable({ tokens }: { tokens: TokenMarketResponse[] }) {
     return (
-        <div className="bg-[#14151a] rounded-lg border border-gray-800 overflow-hidden">
+        <div className="bg-[#14151a] rounded-lg border border-gray-800 overflow-hidden" suppressHydrationWarning>
             {/* Table Header */}
-            <div className="grid grid-cols-[300px_180px_140px_140px_120px_120px_220px_120px] gap-4 px-6 py-3 bg-[#0d0e12] border-b border-gray-800 text-sm text-gray-400">
+            <div className="grid grid-cols-[300px_180px_140px_140px_120px_120px_220px_120px] gap-4 px-6 py-3 bg-[#0d0e12] border-b border-gray-800 text-sm text-gray-400" suppressHydrationWarning>
                 <div>Pair Info</div>
                 <div className="flex items-center gap-1">
                     Market Cap
@@ -107,14 +193,14 @@ function TrendingTable({ tokens }: { tokens: TokenMarketResponse[] }) {
             </div>
 
             {/* Table Body */}
-            <div className="divide-y divide-gray-800">
+            <div className="divide-y divide-gray-800" suppressHydrationWarning>
                 {tokens.slice(0, 20).map((token, idx) => (
                     <TrendingRow key={`trending-${token.id}-${idx}`} token={token} />
                 ))}
             </div>
 
             {tokens.length === 0 && (
-                <div className="text-center py-20 text-gray-400">
+                <div className="text-center py-20 text-gray-400" suppressHydrationWarning>
                     No tokens found
                 </div>
             )}
@@ -146,11 +232,11 @@ function TrendingRow({ token }: { token: TokenMarketResponse }) {
     };
 
     return (
-        <div className="grid grid-cols-[300px_180px_140px_140px_120px_120px_220px_120px] gap-4 px-6 py-4 hover:bg-gray-900/30 transition-colors">
+        <div className="grid grid-cols-[300px_180px_140px_140px_120px_120px_220px_120px] gap-4 px-6 py-4 hover:bg-gray-900/30 transition-colors" suppressHydrationWarning>
             {/* Pair Info */}
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3" suppressHydrationWarning>
                 <TokenLogo src={token.image} symbol={token.symbol} size={44} />
-                <div className="min-w-0">
+                <div className="min-w-0" suppressHydrationWarning>
                     <div className="flex items-center gap-2 mb-1">
                         <span className="font-semibold text-white">{token.symbol}</span>
                         <span className="text-gray-400 text-sm truncate">{token.name}</span>
@@ -290,12 +376,12 @@ function SurgeCard({ token }: { token: TokenMarketResponse }) {
     const mcPercentage = Math.min((token.market_cap / 1000000) * 10, 100);
 
     return (
-        <div className="bg-[#14151a] rounded-lg border border-gray-800 p-4 hover:border-gray-700 transition-colors">
+        <div className="bg-[#14151a] rounded-lg border border-gray-800 p-4 hover:border-gray-700 transition-colors" suppressHydrationWarning>
             {/* Header */}
-            <div className="flex items-start justify-between mb-3">
-                <div className="flex items-center gap-3">
+            <div className="flex items-start justify-between mb-3" suppressHydrationWarning>
+                <div className="flex items-center gap-3" suppressHydrationWarning>
                     <TokenLogo src={token.image} symbol={token.symbol} size={56} />
-                    <div>
+                    <div suppressHydrationWarning>
                         <div className="font-semibold text-white text-sm">{token.symbol}</div>
                         <div className="text-xs text-gray-400 truncate max-w-[120px]">{token.name}</div>
                         <div className="text-xs text-gray-500 mt-0.5">{token.dex || 'pump'}_pump</div>
