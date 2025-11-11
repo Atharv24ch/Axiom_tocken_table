@@ -1,0 +1,30 @@
+export interface TokenMarketResponse {
+    id: string;
+    symbol: string;
+    name: string;
+    image: string;
+    current_price: number;
+    market_cap: number;
+    market_cap_rank: number;
+    fully_diluted_valuation: number | null;
+    total_volume: number;
+    price_change_percentage_24h: number;
+    price_change_percentage_1h?: number;
+    price_change_percentage_5m?: number;
+    circulating_supply: number;
+    total_supply: number | null;
+    max_supply: number | null;
+    ath: number;
+    atl: number;
+    last_updated: string;
+    liquidity?: number;
+    buy_txns?: number;
+    sell_txns?: number;
+    buyers?: number;
+    sellers?: number;
+    sparkline?: number[];
+    pair_address?: string;
+    holder_count?: number;
+    pair_created_at?: number;
+    dex?: string;
+}
