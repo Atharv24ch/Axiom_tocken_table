@@ -16,8 +16,25 @@ export default function Home() {
           {/* Left - Logo and Nav */}
           <div className="flex items-center gap-8" suppressHydrationWarning>
             <div className="flex items-center gap-2" suppressHydrationWarning>
-              <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center" suppressHydrationWarning>
-                <span className="text-black font-bold text-sm">▲</span>
+              <div className="w-8 h-8 flex items-center justify-center" suppressHydrationWarning>
+                <svg 
+                  width="32" 
+                  height="32" 
+                  viewBox="0 0 32 32" 
+                  fill="none" 
+                  xmlns="http://www.w3.org/2000/svg"
+                >
+                  {/* Top Triangle */}
+                  <path 
+                    d="M16 6 L22 13 L10 13 Z" 
+                    fill="#c5d9ff"
+                  />
+                  {/* Bottom Trapezoid */}
+                  <path 
+                    d="M8 16 L24 16 L22 24 L10 24 Z" 
+                    fill="#b8cfff"
+                  />
+                </svg>
               </div>
             </div>
             <div className="flex items-center gap-6 text-sm" suppressHydrationWarning>

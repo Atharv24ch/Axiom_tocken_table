@@ -164,6 +164,7 @@ export const NewPairsTable = () => {
             {selectedToken && (
                 <TradingModal
                     token={selectedToken}
+                    isOpen={!!selectedToken}
                     onClose={() => setSelectedToken(null)}
                 />
             )}

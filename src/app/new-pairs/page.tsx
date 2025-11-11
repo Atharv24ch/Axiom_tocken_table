@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import { Suspense } from "react";
 import { AppProviders } from "@/components/providers/AppProviders";
 import { NewPairsTable } from "@/components/organisms/NewPairsTable";
+import { SkeletonRow } from "@/components/molecules/SkeletonRow";
 
 export default function NewPairsPage() {
     return (
@@ -80,7 +82,15 @@ export default function NewPairsPage() {
                 {/* Token Table */}
                 <div className="container mx-auto px-4 py-6">
                     <div className="bg-[#14151a] rounded-xl overflow-hidden border border-gray-800">
-                        <NewPairsTable />
+                        <Suspense fallback={
+                            <div className="w-full space-y-2 p-4">
+                                {Array.from({ length: 10 }).map((_, i) => (
+                                    <SkeletonRow key={i} />
+                                ))}
+                            </div>
+                        }>
+                            <NewPairsTable />
+                        </Suspense>
                     </div>
 
                     {/* Footer Info */}
