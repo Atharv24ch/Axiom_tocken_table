@@ -1,5 +1,11 @@
 # Token Discovery - Axiom Trade Pulse
 
+## 📷 Screenshots
+
+![Trending view](screenshots/trending-view.png)
+
+![Surge view](screenshots/surge-view.png)
+
 A high-performance token trading interface built with Next.js 14, featuring real-time price updates, advanced sorting, virtualized rendering, and an intuitive trading modal. **Styled to match Axiom's dark trading interface.**
 
 ## 🚀 Features
@@ -330,15 +336,3 @@ MIT License - see LICENSE file for details
 ---
 
 Built with ❤️ for Axiom Trade Pulse
-
-## 🖼️ Screenshots
-
-Below are a couple of screenshots taken from the running app (included in the `screenshots/` directory):
-
-- Trending view
-
-	![Trending view](screenshots/trending-view.png)
-
-- Surge view
-
-	![Surge view](screenshots/surge-view.png)
